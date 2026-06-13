@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omnigent-mlflow"
+version = "0.1.0"
+description = "Drop-in MLflow tracing for omnigent agents"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Debu Sinha", email = "debusinha2009@gmail.com" },
+]
+keywords = ["mlflow", "omnigent", "agents", "tracing", "observability", "llm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "mlflow>=3.0",
+]
+
+[project.optional-dependencies]
+omnigent = ["omnigent-client>=0.1.0"]
+genai = ["mlflow[genai]>=3.0"]
+dev = [
+    "ruff>=0.5",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[project.urls]
+Homepage = "https://github.com/debu-sinha/omnigent-mlflow-quickstart"
+Issues = "https://github.com/debu-sinha/omnigent-mlflow-quickstart/issues"
+Omnigent = "https://github.com/omnigent-ai/omnigent"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
