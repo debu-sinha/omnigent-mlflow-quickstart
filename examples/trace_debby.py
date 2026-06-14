@@ -43,7 +43,6 @@ from omnigent_client import BlockStream, LocalServer, OmnigentClient
 
 from omnigent_mlflow import OmnigentMlflowHooks
 
-
 DEFAULT_QUESTION = "what is the right pricing tier for a developer plan?"
 
 
@@ -61,6 +60,15 @@ async def main() -> int:
         help="Agent name to send the question to.",
     )
     parser.add_argument(
+        "--agent-path",
+        default=os.environ.get("OMNIGENT_AGENT_PATH"),
+        help=(
+            "Path to the agent directory or tarball. Required when "
+            "spawning a local server (no --server). Ignored when "
+            "--server points at an already-running omnigent server."
+        ),
+    )
+    parser.add_argument(
         "--experiment",
         default=os.environ.get("MLFLOW_EXPERIMENT_NAME", "omnigent-debby"),
     )
@@ -68,23 +76,42 @@ async def main() -> int:
 
     hooks_factory = OmnigentMlflowHooks(experiment=args.experiment)
 
-    server_ctx = LocalServer() if not args.server else _noop_ctx()
-    async with server_ctx as srv:
-        base_url = args.server or srv.url
-        async with OmnigentClient(base_url=base_url) as client:
-            session = client.session(model=args.agent)
-            stream = BlockStream(hooks=hooks_factory.stream_hooks())
-            async for block in stream.stream(session, args.question):
-                # The hook-based tracer captures everything we need;
-                # the loop here just prints assistant text to stdout
-                # for the operator. Filter out the chunks you don't
-                # want printed (reasoning, tool args, etc.) per taste.
-                text = _extract_text(block)
-                if text:
-                    sys.stdout.write(text)
-                    sys.stdout.flush()
-        print()  # newline after streaming completes
+    if args.server:
+        # Caller brought their own server; we just open a client.
+        async with OmnigentClient(base_url=args.server) as client:
+            await _run_one(client, args.agent, args.question, hooks_factory)
+    else:
+        if not args.agent_path:
+            print(
+                "ERROR: --agent-path (or OMNIGENT_AGENT_PATH env) is required "
+                "when no --server is given. Point it at e.g. "
+                "examples/debby/ from the omnigent repo.",
+                file=sys.stderr,
+            )
+            return 2
+        async with LocalServer(agent_path=args.agent_path) as server:
+            await _run_one(server.client, args.agent, args.question, hooks_factory)
     return 0
+
+
+async def _run_one(
+    client: OmnigentClient,
+    agent: str,
+    question: str,
+    hooks_factory: OmnigentMlflowHooks,
+) -> None:
+    session = client.session(model=agent, hooks=hooks_factory.stream_hooks())
+    stream = BlockStream()
+    async for block in stream.stream(session, question):
+        # The hook-based tracer captures everything we need. The loop
+        # here just prints assistant text to stdout for the operator.
+        # Filter out the chunks you don't want printed (reasoning,
+        # tool args, etc.) per taste.
+        text = _extract_text(block)
+        if text:
+            sys.stdout.write(text)
+            sys.stdout.flush()
+    print()  # newline after streaming completes
 
 
 def _extract_text(block: object) -> str | None:
@@ -103,7 +130,7 @@ class _noop_ctx:
     """Async context manager that does nothing. Used when the caller
     already brought their own omnigent server."""
 
-    async def __aenter__(self) -> "_noop_ctx":
+    async def __aenter__(self) -> _noop_ctx:
         return self
 
     async def __aexit__(self, *exc: object) -> None:
