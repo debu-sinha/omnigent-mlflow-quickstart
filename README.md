@@ -166,6 +166,33 @@ A few choices worth being explicit about:
 Alpha. Tracks omnigent v0.1.x. The hook surface I'm wrapping is
 itself young; this adapter will need to chase it.
 
+### Known caveat: SessionsChat doesn't fire StreamHooks yet
+
+`StreamHooks` only fires through the legacy `Session.send()` path,
+which posts to `POST /v1/responses`. That route was removed from
+the omnigent server (see `omnigent/server/schemas.py:748`), so the
+end-to-end runnable example here returns a 404 against current
+omnigent server builds even though the adapter itself is correct.
+
+The supported sessions-first path is `SessionsChat`
+(`POST /v1/sessions`). It doesn't accept `StreamHooks` today, which
+means no client-side observability tooling can attach.
+
+I've filed [omnigent-ai/omnigent#35](https://github.com/omnigent-ai/omnigent/issues/35)
+proposing that `SessionsChat.send()` accept a `hooks: StreamHooks`
+argument and fire the same callbacks. Once that lands, the example
+here will run end to end without changes.
+
+In the meantime:
+
+- **Unit tests pass** (see `tests/test_hooks.py`) against the real
+  `StreamHooks` import path. The lifecycle pairing, attribute
+  extraction, parallel sub-agent handling, and PII redaction flags
+  are all exercised against synthetic context objects.
+- **The hook → MLflow span mapping** is the durable part. Whatever
+  surface omnigent ends up shipping for `SessionsChat`, the span
+  translation in `hooks.py` ports without redesign.
+
 ## Credits
 
 The omnigent team at Databricks for designing `StreamHooks` so it
