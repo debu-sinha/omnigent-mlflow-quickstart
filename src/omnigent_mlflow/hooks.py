@@ -87,6 +87,14 @@ class OmnigentMlflowHooks:
     # they're streaming and popped on completion.
     _response_stack: list[str] = field(default_factory=list)
 
+    # Last assistant message content observed per response_id. omnigent's
+    # server emits the streamed content as MessageEndCtx events but the
+    # parent Response.output list is sometimes empty at terminal-event
+    # time (the server consolidates lazily). When that happens we back-
+    # fill the agent span's outputs from the last message we saw so the
+    # trace list preview shows real text rather than "[]".
+    _last_message: dict[str, Any] = field(default_factory=dict)
+
     def __post_init__(self) -> None:
         if self.tracking_uri:
             mlflow.set_tracking_uri(self.tracking_uri)
@@ -174,7 +182,21 @@ class OmnigentMlflowHooks:
             rec.span.set_attribute("omnigent.error.message", r.error.message)
             rec.span.set_status("ERROR")
         if self.capture_outputs:
-            rec.span.set_outputs({"output": r.output})
+            # Prefer the omnigent server's consolidated Response.output.
+            # When it's empty (terminal SSE arrived before the server
+            # finished consolidating output items) fall back to the last
+            # streamed assistant message so the trace list preview
+            # surfaces actual text instead of "[]".
+            output_value = r.output
+            if not output_value:
+                fallback = self._last_message.pop(r.id, None)
+                if fallback is not None:
+                    output_value = fallback
+            else:
+                self._last_message.pop(r.id, None)
+            rec.span.set_outputs({"output": output_value})
+        else:
+            self._last_message.pop(r.id, None)
         rec.span.end()
         if self._response_stack and self._response_stack[-1] == r.id:
             self._response_stack.pop()
@@ -189,8 +211,20 @@ class OmnigentMlflowHooks:
     # --------------------------------------------------------------
 
     def _on_tool_call_start(self, ctx: Any) -> None:
+        # Enrich the span name when omnigent's framework tools carry
+        # a routing field in their arguments. sys_session_send carries
+        # the target sub-agent in arguments["agent"], so the span
+        # surfaces as tool.sys_session_send.claude rather than as two
+        # identical-looking sys_session_send rows in the UI.
+        suffix = ""
+        args = ctx.arguments if isinstance(ctx.arguments, dict) else {}
+        if ctx.name == "sys_session_send":
+            target = args.get("agent") or args.get("name")
+            if isinstance(target, str) and target:
+                suffix = f".{target}"
+        span_name = f"tool.{ctx.name}{suffix}"
         span = mlflow.start_span_no_context(
-            name=f"tool.{ctx.name}",
+            name=span_name,
             span_type=SpanType.TOOL,
             parent_span=self._current_parent(),
         )
@@ -243,6 +277,11 @@ class OmnigentMlflowHooks:
         if self.capture_outputs:
             rec.span.set_outputs({"content": ctx.content})
         rec.span.end()
+        # Record the message content keyed by the response_id at the top
+        # of the stack so response_end can use it as a fallback when
+        # the omnigent server has not consolidated Response.output yet.
+        if self._response_stack:
+            self._last_message[self._response_stack[-1]] = ctx.content
 
     # --------------------------------------------------------------
     # Reasoning

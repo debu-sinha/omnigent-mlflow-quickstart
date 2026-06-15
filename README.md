@@ -177,9 +177,14 @@ Still open:
 
 * omnigent [#146](https://github.com/omnigent-ai/omnigent/issues/146)
   observes that `StreamHooks.on_sub_agent_spawned` /
-  `on_sub_agent_completed` are declared but never fired. Sub-agent
-  spans won't appear in the trace tree until those callbacks are
-  wired.
+  `on_sub_agent_completed` are declared but never fired. Two
+  consequences for the trace tree: (a) `sub_agent.<name>` spans
+  don't appear at all today, and (b) even when those callbacks land
+  upstream, the resulting spans will be empty wrappers unless your
+  caller also subscribes to the sub-agent's session stream. Each
+  sub-agent runs in a different session whose events the parent
+  chat does not see. Wiring per-sub-agent subscription is a
+  separate follow-up on the adapter side.
 * The pure-SDK example has to PATCH a `runner_id` onto a freshly-
   created session before `send()` works. The omnigent CLI does this
   implicitly via `omni run`. The SDK doesn't have a helper for it

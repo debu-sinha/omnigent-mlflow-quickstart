@@ -1,9 +1,14 @@
 """LLM-as-judge scorers for omnigent agent output.
 
-These scorers are MLflow ``judge.align``-compatible: they accept a
-``trace`` (an MLflow Trace object) and return one or more
-``Feedback`` instances. Register them with ``mlflow.genai.scorers``
-to evaluate every traced omnigent run automatically.
+These scorers accept an MLflow ``Trace`` object and return one or
+more ``mlflow.entities.Feedback`` instances. That return shape is
+the standard MLflow GenAI scorer contract, so they slot into
+``mlflow.genai.scorers`` registration. Aligning them through
+``mlflow.genai.judges.align`` should work in principle since both
+expose the same ``(trace) -> list[Feedback]`` shape, but neither
+scorer here has been run through an alignment loop end to end yet.
+Treat alignment compatibility as a design intent, not a verified
+claim, until someone runs the pipeline.
 
 The two scorers shipped here are illustrative; both target the Debby
 debate pattern. Adapt or replace them for your own agent shape.
@@ -55,13 +60,29 @@ Synthesis:
 """
 
 
-def debate_synthesis_quality(trace: Any) -> list[Any]:
+_DEFAULT_JUDGE_MODEL = "endpoints:/databricks-claude-sonnet-4-6"
+
+
+def debate_synthesis_quality(
+    trace: Any,
+    *,
+    model: str = _DEFAULT_JUDGE_MODEL,
+) -> list[Any]:
     """Judge whether a Debby trace's final synthesis fairly represents
     both sub-agents.
 
     Walks the trace's span tree, pulls the two sub_agent.* spans'
     outputs, finds the parent agent.* span's output as the synthesis,
     and asks a judge model to score the three dimensions above.
+
+    Args:
+        trace: An MLflow Trace object.
+        model: Judge model URI in the format MLflow's ``make_judge``
+            accepts. Defaults to the Databricks-hosted Claude Sonnet
+            endpoint, which works on Databricks workspaces and on any
+            MLflow setup whose tracking server has that endpoint
+            available. Override for non-Databricks deployments, e.g.
+            ``"openai:/gpt-5-4"`` or ``"endpoints:/your-judge"``.
 
     Returns a list of ``mlflow.entities.Feedback``. Empty if the
     trace does not match the Debby shape (two sub_agent spans named
@@ -85,7 +106,7 @@ def debate_synthesis_quality(trace: Any) -> list[Any]:
         instructions=_DEBATE_SCORER_PROMPT.format(
             a_output=a_out, b_output=b_out, synthesis=synthesis
         ),
-        model="endpoints:/databricks-claude-sonnet-4-6",
+        model=model,
     )
     verdict = judge(trace=trace)
     if isinstance(verdict, Feedback):
