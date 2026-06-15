@@ -4,6 +4,7 @@
 
 # omnigent-mlflow
 
+[![PyPI version](https://img.shields.io/pypi/v/omnigent-mlflow.svg)](https://pypi.org/project/omnigent-mlflow/)
 [![CI](https://github.com/debu-sinha/omnigent-mlflow-quickstart/actions/workflows/ci.yml/badge.svg)](https://github.com/debu-sinha/omnigent-mlflow-quickstart/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](#install)
