@@ -5,14 +5,24 @@ __pycache__/
 .eggs/
 build/
 dist/
+
 .venv/
 venv/
+.python-version
+
 .pytest_cache/
-.mypy_cache/
 .ruff_cache/
-mlruns/
-mlartifacts/
+.mypy_cache/
 .coverage
 htmlcov/
+
+# MLflow artifacts produced by running the example or the unit tests.
+mlruns/
+mlartifacts/
+*.db
+
+# Misc
 .DS_Store
 *.swp
+.tmp*
+tmp/
