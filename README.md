@@ -9,30 +9,74 @@
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](#install)
 
 MLflow tracing for [omnigent](https://github.com/omnigent-ai/omnigent)
-sessions. Attach `OmnigentMlflowHooks` to a session; every `StreamHooks`
-callback becomes an MLflow span, all nested under one trace per turn.
+sessions. Attach `OmnigentMlflowHooks` to a session and every
+`StreamHooks` callback becomes an MLflow span, all nested under one
+trace per turn.
 
 ![Architecture diagram showing omnigent, the harnesses, the LLM providers, and the MLflow rail](docs/diagrams/architecture.svg)
 
+## What this connects
+
+If you're new to either side:
+
+**omnigent** is a multi-agent runtime that Databricks open-sourced.
+You write an agent as a short YAML file (a prompt, an executor, an
+optional list of sub-agents the supervisor can delegate to) and
+omnigent runs it across terminal, web, native app, mobile, and a REST
+API. The bundled `debby` example fans every question out to a Claude
+sub-agent and a GPT sub-agent in parallel and synthesises the answers.
+
+**MLflow Tracing** is the GenAI observability surface in MLflow. It
+gives you span-based traces (AGENT / TOOL / LLM / CHAIN), a UI to
+explore them, `judge.align` for LLM-as-judge scoring, and the Prompt
+Registry. Self-host it, run it on Databricks, or use the OSS server.
+
+**omnigent-mlflow** is the seam between them. Every `StreamHooks`
+callback omnigent emits during a session (response start/end, tool
+call start/end, reasoning, messages, file outputs, elicitations)
+becomes one MLflow span, with every child correctly nested under its
+parent so the whole turn surfaces as one trace.
+
+## Five minutes from clone to first trace
+
+The complete runnable walkthrough lives in
+[`examples/trace_debby.py`](examples/trace_debby.py). It bundles an
+agent directory, posts it through `sessions_chat`, binds a runner,
+streams the turn, and emits MLflow spans. Run it like this:
+
+```bash
+# 1. Install omnigent + the adapter
+pip install omnigent omnigent-mlflow
+
+# 2. Configure providers (one-time)
+omni setup     # interactive; sets ANTHROPIC + OPENAI keys
+
+# 3. Start the omnigent server (leave running in one terminal)
+omni debby
+
+# 4. In another terminal, run the example against the bundled debby
+export MLFLOW_TRACKING_URI=sqlite:///mlflow.db
+export OMNIGENT_SERVER=http://localhost:6767
+export OMNIGENT_AGENT_PATH=$(omni debug agent-path debby)
+python examples/trace_debby.py "design a pricing tier"
+
+# 5. Open the MLflow UI and click the trace
+mlflow ui --backend-store-uri sqlite:///mlflow.db
+```
+
+The integration itself, once everything is running, is the four-line
+attach pattern:
+
 ```python
-import mlflow
 from omnigent_client import OmnigentClient
 from omnigent_mlflow import OmnigentMlflowHooks
 
-mlflow.set_experiment("my-agent")
-
-hooks = OmnigentMlflowHooks()
-async with OmnigentClient(base_url="http://localhost:6767") as client:
-    chat = await client.sessions_chat(
-        bundle=open("agent.tar.gz", "rb").read(),
-        hooks=hooks.stream_hooks(),
-    )
-    async for event in chat.send("hello"):
-        ...
+hooks = OmnigentMlflowHooks(experiment="my-agent")
+chat = await client.sessions_chat(bundle=bundle, hooks=hooks.stream_hooks())
 ```
 
-That's the integration. Open `mlflow ui`, find the experiment, click any
-trace.
+`bundle` is the gzipped tarball of your agent directory (see
+`_bundle_agent` in `examples/trace_debby.py` for a 10-line helper).
 
 ## Install
 
@@ -40,9 +84,8 @@ trace.
 pip install omnigent-mlflow
 ```
 
-Requires `omnigent>=0.1` and `mlflow>=3.0`. They're declared in
-`pyproject.toml`, so a fresh `pip install omnigent-mlflow` pulls
-them in.
+Requires `omnigent>=0.1` and `mlflow>=3.0`. Both are declared in
+`pyproject.toml` so they get pulled in automatically.
 
 ## Span mapping
 
