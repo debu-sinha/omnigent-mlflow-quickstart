@@ -163,35 +163,39 @@ A few choices worth being explicit about:
 
 ## Status
 
-Alpha. Tracks omnigent v0.1.x. The hook surface I'm wrapping is
-itself young; this adapter will need to chase it.
+Alpha. Tracks omnigent v0.1.x. Live end to end against the bundled
+debby example works as of 2026-06-15.
 
-### Known caveat: SessionsChat doesn't fire StreamHooks yet
+### Worked end to end
 
-`StreamHooks` only fires through the legacy `Session.send()` path,
-which posts to `POST /v1/responses`. That route was removed from
-the omnigent server (see `omnigent/server/schemas.py:748`), so the
-end-to-end runnable example here returns a 404 against current
-omnigent server builds even though the adapter itself is correct.
+omnigent PR [#43](https://github.com/omnigent-ai/omnigent/pull/43)
+("Expose sessions chat stream hooks") by
+[@dipeshbabu](https://github.com/dipeshbabu), reviewed and merged by
+[@dbczumar](https://github.com/dbczumar), wired `StreamHooks` into
+the sessions-first API. That unblocked this adapter end to end. The
+follow-up patch [#149](https://github.com/omnigent-ai/omnigent/pull/149)
+fixed a circular import in `omnigent.llms` that was blocking server
+startup on a fresh install.
 
-The supported sessions-first path is `SessionsChat`
-(`POST /v1/sessions`). It doesn't accept `StreamHooks` today, which
-means no client-side observability tooling can attach.
+A real trace from a debby session:
 
-I've filed [omnigent-ai/omnigent#35](https://github.com/omnigent-ai/omnigent/issues/35)
-proposing that `SessionsChat.send()` accept a `hooks: StreamHooks`
-argument and fire the same callbacks. Once that lands, the example
-here will run end to end without changes.
+![MLflow trace list with 6 spans from a real debby debate session](docs/screenshots/mlflow-traces-list.png)
 
-In the meantime:
+Trace detail showing the orchestrator's "both partners working on it
+in parallel" output:
 
-- **Unit tests pass** (see `tests/test_hooks.py`) against the real
-  `StreamHooks` import path. The lifecycle pairing, attribute
-  extraction, parallel sub-agent handling, and PII redaction flags
-  are all exercised against synthetic context objects.
-- **The hook → MLflow span mapping** is the durable part. Whatever
-  surface omnigent ends up shipping for `SessionsChat`, the span
-  translation in `hooks.py` ports without redesign.
+![Trace detail view with response inputs/outputs](docs/screenshots/mlflow-trace-detail.png)
+
+### Known issues still open upstream
+
+- `StreamHooks.on_sub_agent_spawned` and `on_sub_agent_completed`
+  are declared but never fired anywhere in the SDK ([omnigent#146](https://github.com/omnigent-ai/omnigent/issues/146)).
+  Sub-agent spans don't appear in the trace tree today; they will
+  once the maintainers wire those callbacks.
+- Pure-SDK examples need to PATCH a `runner_id` onto a freshly-
+  created session before `send()` works. `examples/trace_debby.py`
+  does this explicitly. The omnigent CLI does it implicitly; the
+  SDK doesn't have a helper yet.
 
 ## Credits
 
