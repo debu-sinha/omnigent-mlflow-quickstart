@@ -79,10 +79,28 @@ class OmnigentMlflowHooks:
     # private state.
     open_spans: dict[str, _SpanRecord] = field(default_factory=dict)
 
+    # Stack of currently-open response spans, top = current parent.
+    # Used so every child span (tool, message, reasoning, compaction,
+    # sub_agent) nests under its parent response and the whole turn
+    # surfaces as ONE trace in MLflow rather than as a dozen unrelated
+    # top-level traces. Sub-agent responses get pushed on top while
+    # they're streaming and popped on completion.
+    _response_stack: list[str] = field(default_factory=list)
+
     def __post_init__(self) -> None:
         if self.tracking_uri:
             mlflow.set_tracking_uri(self.tracking_uri)
         mlflow.set_experiment(self.experiment)
+
+    def _current_parent(self) -> Any:
+        """Return the LiveSpan for the response currently on top of the
+        stack, or ``None`` when no response is open (which happens for
+        events that arrive before the first ``response_start`` and is
+        the seam where a stray top-level span would land)."""
+        if not self._response_stack:
+            return None
+        rec = self.open_spans.get(self._response_stack[-1])
+        return rec.span if rec else None
 
     # --------------------------------------------------------------
     # Public surface
@@ -123,9 +141,11 @@ class OmnigentMlflowHooks:
 
     def _on_response_start(self, ctx: Any) -> None:
         r = ctx.response
+        parent = self._current_parent()
         span = mlflow.start_span_no_context(
             name=f"agent.{_safe(r.model)}",
             span_type=SpanType.AGENT,
+            parent_span=parent,
         )
         span.set_attribute("omnigent.response_id", r.id)
         span.set_attribute("omnigent.model", r.model)
@@ -136,6 +156,7 @@ class OmnigentMlflowHooks:
         if self.capture_inputs and r.instructions:
             span.set_inputs({"instructions_preview": r.instructions[:1000]})
         self.open_spans[r.id] = _SpanRecord(span=span, name=span.name, started_at=r.created_at)
+        self._response_stack.append(r.id)
 
     def _on_response_end(self, ctx: Any) -> None:
         r = ctx.response
@@ -155,6 +176,13 @@ class OmnigentMlflowHooks:
         if self.capture_outputs:
             rec.span.set_outputs({"output": r.output})
         rec.span.end()
+        if self._response_stack and self._response_stack[-1] == r.id:
+            self._response_stack.pop()
+        else:
+            try:
+                self._response_stack.remove(r.id)
+            except ValueError:
+                pass
 
     # --------------------------------------------------------------
     # Tool calls
@@ -164,6 +192,7 @@ class OmnigentMlflowHooks:
         span = mlflow.start_span_no_context(
             name=f"tool.{ctx.name}",
             span_type=SpanType.TOOL,
+            parent_span=self._current_parent(),
         )
         span.set_attribute("omnigent.tool.name", ctx.name)
         span.set_attribute("omnigent.tool.call_id", ctx.call_id)
@@ -187,7 +216,11 @@ class OmnigentMlflowHooks:
     # --------------------------------------------------------------
 
     def _on_message_start(self, ctx: Any) -> None:
-        span = mlflow.start_span_no_context(name="llm.message", span_type=SpanType.LLM)
+        span = mlflow.start_span_no_context(
+            name="llm.message",
+            span_type=SpanType.LLM,
+            parent_span=self._current_parent(),
+        )
         span.set_attribute("omnigent.response_id", ctx.response_id)
         self.open_spans[f"msg:{ctx.response_id}"] = _SpanRecord(
             span=span, name=span.name, started_at=0.0
@@ -216,7 +249,9 @@ class OmnigentMlflowHooks:
     # --------------------------------------------------------------
 
     def _on_reasoning_start(self, ctx: Any) -> None:
-        span = mlflow.start_span_no_context(name="reasoning", span_type=SpanType.CHAIN)
+        span = mlflow.start_span_no_context(
+            name="reasoning", span_type=SpanType.CHAIN, parent_span=self._current_parent()
+        )
         self.open_spans["reasoning"] = _SpanRecord(span=span, name=span.name, started_at=0.0)
 
     def _on_reasoning_end(self, ctx: Any) -> None:
@@ -232,7 +267,9 @@ class OmnigentMlflowHooks:
     # --------------------------------------------------------------
 
     def _on_compaction_start(self, ctx: Any) -> None:
-        span = mlflow.start_span_no_context(name="compaction", span_type=SpanType.CHAIN)
+        span = mlflow.start_span_no_context(
+            name="compaction", span_type=SpanType.CHAIN, parent_span=self._current_parent()
+        )
         self.open_spans["compaction"] = _SpanRecord(span=span, name=span.name, started_at=0.0)
 
     def _on_compaction_end(self, ctx: Any) -> None:
@@ -248,10 +285,16 @@ class OmnigentMlflowHooks:
     # --------------------------------------------------------------
 
     def _on_sub_agent_spawned(self, ctx: Any) -> None:
+        # Sub-agent spans nest under the parent response's span so the
+        # whole tree is visible as one trace, even when sub-agents run
+        # in parallel.
+        parent_rec = self.open_spans.get(ctx.parent_response_id)
+        parent_span = parent_rec.span if parent_rec else self._current_parent()
         for sub in ctx.sub_agents:
             span = mlflow.start_span_no_context(
                 name=f"sub_agent.{sub.agent_name}",
                 span_type=SpanType.AGENT,
+                parent_span=parent_span,
             )
             span.set_attribute("omnigent.sub_agent.name", sub.agent_name)
             span.set_attribute("omnigent.sub_agent.response_id", sub.response_id)

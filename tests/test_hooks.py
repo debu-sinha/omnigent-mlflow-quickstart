@@ -18,8 +18,12 @@ from omnigent_mlflow import OmnigentMlflowHooks
 
 @pytest.fixture(autouse=True)
 def local_mlflow(tmp_path, monkeypatch):
-    monkeypatch.setenv("MLFLOW_TRACKING_URI", f"file:///{tmp_path}/mlruns")
-    mlflow.set_tracking_uri(f"file:///{tmp_path}/mlruns")
+    # MLflow 3.x removed the file-store tracking backend from the
+    # supported set; tests use SQLite (the recommended local backend).
+    db = tmp_path / "mlflow.db"
+    uri = f"sqlite:///{db}"
+    monkeypatch.setenv("MLFLOW_TRACKING_URI", uri)
+    mlflow.set_tracking_uri(uri)
     return tmp_path
 
 
