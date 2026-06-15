@@ -1,8 +1,18 @@
+<p align="center">
+  <img src="docs/logo.svg" alt="omnigent-mlflow" width="240" />
+</p>
+
 # omnigent-mlflow
+
+[![CI](https://github.com/debu-sinha/omnigent-mlflow-quickstart/actions/workflows/ci.yml/badge.svg)](https://github.com/debu-sinha/omnigent-mlflow-quickstart/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](#install)
 
 MLflow tracing for [omnigent](https://github.com/omnigent-ai/omnigent)
 sessions. Attach `OmnigentMlflowHooks` to a session; every `StreamHooks`
-callback becomes an MLflow span.
+callback becomes an MLflow span, all nested under one trace per turn.
+
+![Architecture diagram showing omnigent, the harnesses, the LLM providers, and the MLflow rail](docs/diagrams/architecture.svg)
 
 ```python
 import mlflow
@@ -79,14 +89,19 @@ python examples/trace_debby.py "design a pricing tier"
 mlflow ui --backend-store-uri sqlite:///mlflow.db
 ```
 
-A real run produces six spans for a single Debby turn: the
-orchestrator's first response, two `sys_session_send` tool calls
-dispatching to the Claude and GPT sub-agents, the reasoning span,
-the closing message, and a status span.
+A real Debby turn produces one MLflow trace with six nested spans:
+the `agent.debby` root, a `reasoning` span, two `tool.sys_session_send`
+calls dispatching to the Claude and GPT sub-agents, and two
+`llm.message` spans for the orchestrator's opening and closing
+messages. The Details + Timeline tab shows the tree:
 
-![MLflow trace list, six spans from a real debby session](docs/screenshots/mlflow-traces-list.png)
+![MLflow trace detail with the agent.debby span tree expanded](docs/screenshots/mlflow-trace-detail.png)
 
-The omnigent server it ran against:
+Same trace from the list view:
+
+![MLflow trace list showing one trace for the full turn](docs/screenshots/mlflow-traces-list.png)
+
+And the omnigent server it ran against:
 
 ![omnigent server OpenAPI page](docs/screenshots/omnigent-server-openapi.png)
 

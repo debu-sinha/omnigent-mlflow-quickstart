@@ -26,7 +26,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 _DEBATE_SCORER_PROMPT = """\
 You are auditing the output of a multi-agent debate.
 
@@ -72,9 +71,7 @@ def debate_synthesis_quality(trace: Any) -> list[Any]:
         from mlflow.entities import Feedback
         from mlflow.genai.judges import make_judge
     except ImportError as e:  # pragma: no cover
-        raise ImportError(
-            "mlflow.genai is required for judges; pip install 'mlflow[genai]'"
-        ) from e
+        raise ImportError("mlflow.genai is required for judges; pip install 'mlflow[genai]'") from e
 
     spans = list(trace.data.spans) if hasattr(trace, "data") else []
     a_out = _find_sub_agent_output(spans, "claude")

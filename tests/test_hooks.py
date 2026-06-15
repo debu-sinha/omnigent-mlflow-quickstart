@@ -10,21 +10,9 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import mlflow
-import pytest
-
 from omnigent_mlflow import OmnigentMlflowHooks
 
-
-@pytest.fixture(autouse=True)
-def local_mlflow(tmp_path, monkeypatch):
-    # MLflow 3.x removed the file-store tracking backend from the
-    # supported set; tests use SQLite (the recommended local backend).
-    db = tmp_path / "mlflow.db"
-    uri = f"sqlite:///{db}"
-    monkeypatch.setenv("MLFLOW_TRACKING_URI", uri)
-    mlflow.set_tracking_uri(uri)
-    return tmp_path
+# The local_mlflow fixture is autouse and lives in tests/conftest.py.
 
 
 def _response(rid: str, model: str = "debby"):
