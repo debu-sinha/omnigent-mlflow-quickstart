@@ -5,22 +5,37 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "omnigent-mlflow"
 version = "0.1.1"
-description = "Drop-in MLflow tracing for omnigent agents"
+description = "MLflow tracing adapter for omnigent agents. One span per StreamHooks callback, one trace per turn."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
 authors = [
     { name = "Debu Sinha", email = "debusinha2009@gmail.com" },
 ]
-keywords = ["mlflow", "omnigent", "agents", "tracing", "observability", "llm"]
+keywords = [
+    "mlflow",
+    "omnigent",
+    "agents",
+    "multi-agent",
+    "tracing",
+    "observability",
+    "genai",
+    "llm",
+    "databricks",
+    "ai-agents",
+]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
     "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
 ]
 dependencies = [
     "mlflow>=3.0",
@@ -37,8 +52,13 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/debu-sinha/omnigent-mlflow-quickstart"
+Documentation = "https://github.com/debu-sinha/omnigent-mlflow-quickstart#readme"
+Repository = "https://github.com/debu-sinha/omnigent-mlflow-quickstart"
+Changelog = "https://github.com/debu-sinha/omnigent-mlflow-quickstart/blob/main/CHANGELOG.md"
 Issues = "https://github.com/debu-sinha/omnigent-mlflow-quickstart/issues"
+Discussions = "https://github.com/debu-sinha/omnigent-mlflow-quickstart/discussions"
 Omnigent = "https://github.com/omnigent-ai/omnigent"
+MLflow = "https://mlflow.org/"
 
 [tool.setuptools.packages.find]
 where = ["src"]

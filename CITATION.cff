@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+title: "omnigent-mlflow: MLflow tracing for omnigent agents"
+message: "If you reference this software in a paper or article, please cite it as below."
+authors:
+  - family-names: Sinha
+    given-names: Debu
+    orcid: "https://orcid.org/0000-0000-0000-0000"
+type: software
+license: Apache-2.0
+repository-code: "https://github.com/debu-sinha/omnigent-mlflow-quickstart"
+url: "https://pypi.org/project/omnigent-mlflow/"
+keywords:
+  - mlflow
+  - omnigent
+  - agent observability
+  - multi-agent tracing
+  - llm observability
