@@ -38,12 +38,12 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "mlflow>=3.0",
+    "mlflow>=3.14.0",
 ]
 
 [project.optional-dependencies]
 omnigent = ["omnigent-client>=0.1.0"]
-genai = ["mlflow[genai]>=3.0"]
+genai = ["mlflow[genai]>=3.14.0"]
 dev = [
     "ruff>=0.5",
     "pytest>=8.0",
